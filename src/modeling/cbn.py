@@ -25,8 +25,8 @@ class CBNNode:
     ) -> None:
         self.name: str = name
         self.causal_mechanism: StochasticModel | ConditionalStochasticModel = causal_mechanism
-        self.parents: list['CBNNode'] = []
-        self.children: list['CBNNode'] = []
+        self.parents: list[CBNNode] = []
+        self.children: list[CBNNode] = []
 
         self.observed_y: np.ndarray | None = None
         self.curiosity: stats.rv_histogram | None = None
@@ -111,10 +111,10 @@ class CBNNode:
 
         self.curiosity = self._compute_curiosity()
 
-    def set_parents(self, parents: list['CBNNode']) -> None:
+    def set_parents(self, parents: list[CBNNode]) -> None:
         self.parents = parents
 
-    def set_children(self, children: list['CBNNode']) -> None:
+    def set_children(self, children: list[CBNNode]) -> None:
         self.children = children
 
     def plot_obs_distribution(self) -> None:
