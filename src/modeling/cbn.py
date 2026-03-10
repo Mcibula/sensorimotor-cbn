@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pickle
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,7 +26,7 @@ class CBNNode:
             self,
             name: str,
             causal_mechanism: StochasticModel | ConditionalStochasticModel,
-            limits: str | tuple[float, float] = 'infer'
+            limits: Literal['infer'] | tuple[float, float] = 'infer'
     ) -> None:
         """
         Initialize a node instance
