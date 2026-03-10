@@ -17,17 +17,32 @@ if TYPE_CHECKING:
 
 
 class CBNNode:
+    """
+    Causal Bayesian network node supporting
+    probabilistic learning and inference operations
+    """
+
     def __init__(
             self,
             name: str,
             causal_mechanism: StochasticModel | ConditionalStochasticModel,
             limits: str | tuple[float, float] = 'infer'
     ) -> None:
+        """
+        Initialize a node instance
+
+        :param name: Natural-language name of the node
+        :param causal_mechanism: Causal learning/inference model to be used in the node
+        :param limits: Min-max range of the node's output (i.e., co-domain / y-values / targets);
+                       if set to `'infer'`, the range will be inferred from observed data
+        """
+
         self.name: str = name
         self.causal_mechanism: StochasticModel | ConditionalStochasticModel = causal_mechanism
         self.parents: list[CBNNode] = []
         self.children: list[CBNNode] = []
 
+        # Observation accumulator
         self.observed_y: np.ndarray | None = None
         self.curiosity: stats.rv_histogram | None = None
 
@@ -38,26 +53,47 @@ class CBNNode:
             else limits
         )
 
+        # Generative distribution
         self.gen_samples: np.ndarray | None = None
 
     @property
     def is_root(self) -> bool:
+        """
+        Check if the node is a root (orphaned)
+        """
+
         return not self.parents
 
     @property
     def is_leaf(self) -> bool:
+        """
+        Check if the node is a leaf (childless)
+        """
+
         return not self.children
 
     @property
     def has_been_fit(self) -> bool:
+        """
+        Check if the node has already observed any data (has been fit)
+        """
+
         return self.observed_y is not None
 
     @property
     def x_dim(self) -> int:
+        """
+        Input dimensionality (number of input nodes / features)
+        """
+
         return len(self.parents)
 
     @property
     def domain(self) -> np.ndarray:
+        """
+        Numerical domain of the node
+        """
+
         return np.array([
             np.linspace(*p.limits, num=10_000)
             for p in self.parents
@@ -65,9 +101,26 @@ class CBNNode:
 
     @property
     def codomain(self) -> np.ndarray:
+        """
+        Numerical co-domain of the node
+        """
+
         return np.linspace(*self.limits, num=10_000)
 
     def _compute_curiosity(self) -> stats.rv_histogram:
+        r"""
+        Compute the curiosity distribution based on epistemic uncertainty.
+        I.e., the observation density :math:`\hat{p}_\text{obs}` is inverted as
+        .. math::
+            p_\text{inv} (x) \triangleq \frac{p_{\max} - \hat{p}_\text{obs}(x)}{p_{\max} V - 1},
+        where :math:`p_{\max} = \sup_{x \in \mathcal{X}} \hat{p}_\text{obs}(x)` is the maximum density
+        of the observation distribution, and :math:`V = \sum_{m=1}^M \lvert B_m \rvert` denotes the total
+        continuous width of the support :math:`\mathcal{X}`, with :math:`\lvert B_m \rvert` being
+        the width of a histogram bin :math:`B_m`.
+
+        :return: The inverted histogram distribution :math:`P_\text{inv}`
+        """
+
         counts, bin_edges = np.histogram(
             self.observed_y,
             bins='auto',
@@ -81,18 +134,35 @@ class CBNNode:
         return stats.rv_histogram(compl_hist)
 
     def bump_curiosity(self, point: float, strength: float = 1.5, width: float = 0.1) -> stats.rv_histogram:
+        r"""
+        Generate curiosity / intrinsic motivation distribution by inverting
+        the observation distribution and boosting the local neighborhood around `point`
+        using the Gaussian bump function to avoid large discontinuities in the exploration.
+
+        :param point: Point to boost the neighborhood around. This is supposed to be the current
+                      point observation, so the intrinsic motivation primarily forces the agent
+                      to explore near the current state
+        :param strength: Amplification factor of the locality bias
+        :param width: Standard deviation of the bump
+        :return: Curiosity / intrinsic motivation distribution modulated by the current state
+        """
+
+        # If no curiosity distribution is cached yet, compute a new one
         if self.curiosity is None:
             self.curiosity = self._compute_curiosity()
 
+        # Check whether the observed point is within the range
         if point < self.limits[0] or point > self.limits[1]:
             raise ValueError
 
         counts, bin_edges = self.curiosity._histogram
         bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
+        # Boost the distribution around the point
         bump = 1 + (strength - 1) * np.exp(-0.5 * ((bin_centers - point) / width) ** 2)
         boosted_counts = counts * bump
 
+        # Normalize
         bin_widths = np.diff(bin_edges)
         area = np.sum(boosted_counts * bin_widths)
         boosted_counts /= area
