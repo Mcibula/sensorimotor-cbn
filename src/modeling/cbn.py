@@ -170,24 +170,48 @@ class CBNNode:
         return stats.rv_histogram((boosted_counts, bin_edges))
 
     def observe(self, data: np.ndarray) -> None:
+        """
+        Observe and record new outcomes of this node
+
+        :param data: Vector batch of the observed scalar outcomes
+        """
+
         self.observed_y = (
             data
             if self.observed_y is None
             else np.append(self.observed_y, data)
         )
 
+        # Refresh the data limits with respect to new data
         if self.infer_limits:
             self.limits = (self.observed_y.min(), self.observed_y.max())
 
+        # Recompute curiosity distribution
         self.curiosity = self._compute_curiosity()
 
     def set_parents(self, parents: list[CBNNode]) -> None:
+        """
+        Set the parent nodes of this node
+
+        :param parents: Parent `CBNNode` instances
+        """
+
         self.parents = parents
 
     def set_children(self, children: list[CBNNode]) -> None:
+        """
+        Set the children nodes of this node
+
+        :param children: Children `CBNNode` instances
+        """
+
         self.children = children
 
     def plot_obs_distribution(self) -> None:
+        """
+        Plot the observational distribution overlaid by the curiosity density
+        """
+
         fig, ax1 = plt.subplots()
 
         c1 = 'tab:blue'
@@ -219,9 +243,28 @@ class CBNNode:
         plt.show()
 
     def predict(self, X: np.ndarray) -> np.ndarray:
+        r"""
+        Run this node's causal mechanism to predict outcome data
+        samples from the parent samples
+
+        :param X: :math:`N` parent samples :math:`\mathbb{R}^{N \times d}`,
+                  with :math:`d` equal to the number of parents
+        :return: :math:`N` scalar outcome predictions as :math:`\mathbb{R}^N`
+                 element-wise corresponding to `X`
+        """
+
+        if self.is_root or isinstance(self.causal_mechanism, StochasticModel):
+            raise RuntimeError
+
         return self.causal_mechanism.draw_samples(X)
 
     def plot_image(self) -> None:
+        """
+        Scatter plot the predictions based on the whole domain of the node.
+        If the node has more than 1 parent and thus the scatter plot would be >=3D,
+        the dimensional reduction to 2D is performed using the UMAP method
+        """
+
         if self.x_dim == 0:
             raise ValueError
 
@@ -255,7 +298,16 @@ class CBNNode:
         plt.show()
 
     def set_samples(self, samples: np.ndarray) -> None:
-        if self.gen_samples is not None and self.gen_samples.shape != samples.shape:
+        """
+        Record a new generative distribution of this node by providing the new samples
+
+        :param samples: Samples to assemble the generative distribution from
+        """
+
+        if (
+                self.gen_samples is not None
+                and self.gen_samples.shape != samples.shape
+        ):
             raise ValueError
 
         self.gen_samples = samples
