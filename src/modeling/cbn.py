@@ -314,6 +314,11 @@ class CBNNode:
         self.gen_samples = samples
 
     def propagate_samples(self) -> None:
+        """
+        Recursively perform prediction on this node and its children
+        based on this node's parents' generative distributions
+        """
+
         pa_samples = np.vstack([
             parent.gen_samples
             for parent in self.parents
@@ -326,6 +331,17 @@ class CBNNode:
             child.propagate_samples()
 
     def explore(self, current_state: float | None = None, n_samples: int = 1) -> np.ndarray:
+        """
+        Sample new targets / outcomes of this node based on the curiosity distribution.
+        If `current_state` (the current target) is given, the curiosity density will be
+        increased in the Gaussian neighborhood around it.
+
+        :param current_state: Scalar target of this node to construct local bias in the curiosity density around;
+                              if `None`, the curiosity distribution is sampled without modulation
+        :param n_samples: Number of targets to sample from the curiosity distribution
+        :return: Array of sampled targets of this node
+        """
+
         curiosity = (
             self.curiosity
             if current_state is None
@@ -336,15 +352,34 @@ class CBNNode:
 
 
 class MonteCarloCBN:
+    """
+    Framework for an untrained existing structural causal model (a causal Bayesian network)
+    supporting Monte Carlo sampling and meta-learning
+    """
+
     def __init__(
             self,
             untrained_scm: StructuralCausalModel | None = None,
             limits: dict[str, tuple[float, float]] | None = None,
             load_file: str | None = None
     ) -> None:
+        """
+        Initialize the framework with an existing untrained structural causal model
+
+        :param untrained_scm: Existing untrained SCM encoding the causal relationships
+                              between variables
+        :param limits: Ranges of variables in the `untrained_scm` as `(min, max)` tuples.
+                       If range is not specified for some variable, the range will be inferred
+                       from data during the continual fitting process
+        :param load_file: File path of a pickle file containing an SCM; if given, the framework
+                          will be initialized from the structures in the file instead of using
+                          `untrained_scm` and `limits`
+        """
+
         if untrained_scm is None and load_file is None:
             raise ValueError
 
+        # Priority load file with pre-existing structures, if given
         if load_file is not None:
             with open(load_file, 'rb') as f:
                 data = pickle.load(f)
@@ -361,6 +396,7 @@ class MonteCarloCBN:
             limits = {}
 
         try:
+            # Initialize the network nodes for each SCM variable
             for node in list(self.G.nodes):
                 self.nodes[node] = CBNNode(
                     name=node,
@@ -374,6 +410,7 @@ class MonteCarloCBN:
         except KeyError:
             raise ValueError
 
+        # Copy the topology of the SCM to individual nodes
         for node_name in self.nodes:
             node = self.nodes[node_name]
 
@@ -388,9 +425,24 @@ class MonteCarloCBN:
 
     @property
     def G(self) -> DiGraph:
+        """
+        Causal graph of the SCM / CBN;
+        by definition, this will be a directed acyclic graph (DAG)
+        """
+
         return self.M.graph
 
     def _check_same_len(self, nodes: list[str]) -> bool:
+        """
+        Check whether all the specified nodes have observed the same number
+        of data samples. This check is meant to force the preservation of
+        the row-wise sample correspondence across the nodes
+
+        :param nodes: Nodes to check
+        :return: `True` if all the specified nodes have observed
+                 the same amount of data, `False` otherwise
+        """
+
         data_len: list[int] = []
         for node in nodes:
             node_data = self.nodes[node].observed_y
@@ -403,6 +455,15 @@ class MonteCarloCBN:
         return len(set(data_len)) == 1
 
     def _reconstruct_data(self, nodes: list[str]) -> pd.DataFrame:
+        """
+        Construct Pandas DataFrame containing all the observed data samples
+        from the specified nodes
+
+        :param nodes: Nodes to extract data from
+        :return: DataFrame containing all the observed data samples
+                 with the nodes organized in columns
+        """
+
         return pd.DataFrame({
             node: (
                 data
@@ -413,17 +474,34 @@ class MonteCarloCBN:
         })
 
     def fit(self, data: pd.DataFrame) -> None:
+        """
+        Incrementally fit the whole network on new data. As the backend framework does not
+        support incremental fitting, provided new `data` is concatenated with the previous
+        samples and each node is refitted on the merged data.
+
+        :param data: New data to be used for training. Columns of the DataFrame
+                     must correspond to the graph variables and all the variables
+                     must be contained.
+        """
+
+        # Check if the stored data samples from all the nodes match
         if not self._check_same_len(list(self.nodes)):
             raise ValueError
 
+        # Concatenate the new data with the stored samples
+        # to facilitate a pseudo-incremental fitting
         new_data = pd.concat([
             data,
             self._reconstruct_data(list(self.nodes))
         ])
 
+        # Refit the SCM on the merged dataset and regenerate the samples
+        # to construct a new generative distribution for each estimator (node)
         gcm.fit(self.M, new_data)
         samples = self.forward_sample()
 
+        # Add new data to each node (incrementally this time),
+        # instantiate new generative distributions, and recompute curiosity
         for node_name in self.nodes:
             node = self.nodes[node_name]
 
@@ -431,6 +509,15 @@ class MonteCarloCBN:
             node.set_samples(samples.loc[:, node_name].to_numpy())
 
     def fit_node(self, node: str, data: pd.DataFrame) -> None:
+        """
+        Incrementally fit a single node of the network
+
+        :param node: Name of the target node to refit
+        :param data: DataFrame with new data samples; must include data
+                     for all the parents of the node and the target node itself
+        """
+
+        # Select data for the relevant nodes
         rel_nodes = [
             parent.name
             for parent in self.nodes[node].parents
@@ -445,14 +532,27 @@ class MonteCarloCBN:
             self._reconstruct_data(rel_nodes)
         ])
 
+        # Refit the causal mechanism of the target node
+        # (i.e., the mapping between the parents and the node)
         gcm.fitting_sampling.fit_causal_model_of_target(self.M, node, new_data)
 
+        # Add new data to the parents and the target node
         for node_name in rel_nodes:
             self.nodes[node_name].observe(data.loc[:, node_name].to_numpy())
 
+        # Propagate samples from the target node onward
         self.nodes[node].propagate_samples()
 
     def forward_sample(self, n_samples: int = int(1e7)) -> pd.DataFrame:
+        """
+        Recursively draw sample from the distribution of each node.
+        Start with sampling the root nodes and propagate the samples downstream
+        to condition causally dependent nodes
+
+        :param n_samples: Number of samples to draw for each node
+        :return: DataFrame with `n_samples` data points for each node
+        """
+
         return gcm.draw_samples(
             causal_model=self.M,
             num_samples=n_samples
@@ -464,6 +564,17 @@ class MonteCarloCBN:
             aggregator: Callable[[np.ndarray, ...], np.ndarray] | None = None,
             n_samples: int = int(1e5)
     ) -> np.ndarray:
+        """
+        Perform interventional inference on the model by computing the interventional
+        distributions across the network and sampling them afterwards. The observational data
+        are sampled from the generative distributions
+
+        :param interventions: Fixed values to set the specific nodes to
+        :param aggregator: Optional function to post-process the interventional samples by
+        :param n_samples: Number of samples to draw for each node distribution
+        :return: DataFrame with `n_samples` data points for each node
+        """
+
         samples = gcm.interventional_samples(
             causal_model=self.M,
             interventions={
@@ -483,6 +594,15 @@ class MonteCarloCBN:
             state: dict[str, float],
             sampled_nodes: list[str]
     ) -> dict[str, float]:
+        """
+        Generate scalar target values for each of the `sampled_nodes`
+        based on the current state
+
+        :param state: Values of all the nodes in `sampled_nodes`
+        :param sampled_nodes: Target nodes to generate exploration values for
+        :return: Exploration target values for all the nodes specified by `sampled_nodes`
+        """
+
         for node_name in sampled_nodes:
             if node_name not in state:
                 raise ValueError
@@ -507,6 +627,34 @@ class MonteCarloCBN:
             min_results: int = 100,
             verbose: bool = False
     ) -> dict[str, stats.rv_histogram]:
+        r"""
+        Generate hypothetical distributions based on the sampling targets.
+        Target nodes' generative distributions are filtered to match the sampling
+        targets and the corresponding data points are read out from the readout nodes.
+        Hence, this process actually finds probable (as per the current knowledge
+        of the estimators within the network) values of the readout variables,
+        which should cause the target variables to approximately result in values
+        specified by `sampling_targets`.
+
+        If at least `min_results` matching data points are not found, the matching tolerance
+        :math:`\delta` will be iteratively increased by `delta_gain` until the sufficient
+        number of data points is reached
+
+        :param sampling_targets: Values to set the target nodes to; must specify values
+                                 for all the variables in `target_nodes`
+        :param target_nodes: Nodes to sample first and match them with `sampling_targets`
+        :param readout_nodes: Nodes to read out the values from, which should cause
+                              the target nodes to result in the values specified by `sampling_targets`
+        :param init_delta: Initial tolerance of the absolute difference between the desired target values
+                           of the target nodes and their sampled data points
+        :param delta_gain: Multiplication factor by which :math:`\delta` will be increased
+                           after every failed iteration of rejection sampling
+        :param min_results: Minimum number of matching data points for the rejection sampling
+                            iteration to be successful
+        :param verbose: If `True`, progress of the sampling process will be reported
+        :return: Histogram hypothetical distributions of the readout nodes
+        """
+
         if verbose:
             print(f'Starting backpropagated rejection sampling with delta = {init_delta:.2f}')
 
@@ -517,21 +665,28 @@ class MonteCarloCBN:
             if verbose:
                 print(f'Iteration {iteration + 1} (delta = {delta:.2f}): ', end='')
 
-            init_node = sampled_nodes[0]
+            # Initialize the sample filter
+            # IDs of the matching samples will be further checked and in case the corresponding
+            # samples do not match for other variables, they will be rejected
             init_node = target_nodes[0]
             mask = np.abs(self.nodes[init_node].gen_samples - sampling_targets[init_node]) <= delta
             sample_ids = np.where(mask)[0]
 
-            for node_name in sampled_nodes[1:] + fixed_nodes:
+            # Check the match for the rest of the target variables
             for node_name in target_nodes[1:]:
+                # If the sample selection is already too small,
+                # perform another iteration with increased tolerance
                 if len(sample_ids) < min_results:
                     break
 
+                # Get the cached data points sampled from the node's generative distribution
                 rel_samples = self.nodes[node_name].gen_samples[sample_ids]
 
+                # Filter out suboptimal samples
                 mask = np.abs(rel_samples - sampling_targets[node_name]) <= delta
                 sample_ids = sample_ids[mask]
 
+            # End the sampling process if enough data points were found
             if len(sample_ids) >= min_results:
                 if verbose:
                     print(f'Success. Found {len(sample_ids)} valid samples.')
@@ -546,9 +701,11 @@ class MonteCarloCBN:
 
         readout_distribs = {}
         for node_name in readout_nodes:
+            # Get the corresponding data points for the readout variables
             node = self.nodes[node_name]
             samples = node.gen_samples[sample_ids]
 
+            # Construct a histogram distribution from the collected data points
             hist = np.histogram(
                 samples,
                 bins='auto',
@@ -569,7 +726,29 @@ class MonteCarloCBN:
             min_results: int = 100,
             verbose: bool = False
     ) -> dict[str, stats.rv_histogram]:
-        sampling_targets = self.get_exploration_target(state, sampled_nodes) | {
+        r"""
+        Perform a Monte Carlo exploration using this model.
+        For the nodes specified by `explored_nodes`, new exploration target values
+        will be computed to expand the current observational distribution of these nodes.
+        Afterwards, the hypothetical distributions of the readout nodes will be computed,
+        which should causally yield the set exploration targets in the explored nodes
+
+        :param state: The current state of the system's variables
+        :param fixed_nodes: Nodes which will be set to the values specified by `state`
+                            instead of having exploration targets generated
+        :param explored_nodes: Nodes which will have new exploration targets generated
+        :param readout_nodes: Nodes for which hypothetical distributions will be computed
+        :param init_delta: Initial tolerance of the absolute difference between the desired target values
+                           of the target nodes and their sampled data points
+        :param delta_gain: Multiplication factor by which :math:`\delta` will be increased
+                           after every failed iteration of rejection sampling
+        :param min_results: Minimum number of matching data points for the rejection sampling
+                            iteration to be successful
+        :param verbose: If `True`, progress of the hypothesis construction will be reported
+        :return: Histogram hypothetical distributions of the readout nodes
+        """
+
+        # Generate new exploration targets for `explored_nodes`
         sampling_targets = self.get_exploration_target(state, explored_nodes) | {
             node_name: state[node_name]
             for node_name in fixed_nodes
@@ -588,6 +767,12 @@ class MonteCarloCBN:
         return readout_distribs
 
     def save(self, filename: str) -> None:
+        """
+        Save this framework to a pickle file to be loaded by the constructor later
+
+        :param filename: Filename to save to
+        """
+
         data = {
             'scm': self.M,
             'nodes': self.nodes
