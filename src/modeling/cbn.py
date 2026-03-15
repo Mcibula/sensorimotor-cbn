@@ -562,7 +562,7 @@ class MonteCarloCBN:
             self,
             state: dict[str, float],
             fixed_nodes: list[str],
-            sampled_nodes: list[str],
+            explored_nodes: list[str],
             readout_nodes: list[str],
             init_delta: float = 0.1,
             delta_gain: float = 2.0,
@@ -570,13 +570,14 @@ class MonteCarloCBN:
             verbose: bool = False
     ) -> dict[str, stats.rv_histogram]:
         sampling_targets = self.get_exploration_target(state, sampled_nodes) | {
+        sampling_targets = self.get_exploration_target(state, explored_nodes) | {
             node_name: state[node_name]
             for node_name in fixed_nodes
         }
 
         readout_distribs = self.construct_hypothesis(
             sampling_targets=sampling_targets,
-            target_nodes=sampled_nodes + fixed_nodes,
+            target_nodes=explored_nodes + fixed_nodes,
             readout_nodes=readout_nodes,
             init_delta=init_delta,
             delta_gain=delta_gain,
