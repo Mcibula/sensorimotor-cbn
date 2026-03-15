@@ -495,8 +495,7 @@ class MonteCarloCBN:
     def construct_hypothesis(
             self,
             sampling_targets: dict[str, float],
-            fixed_nodes: list[str],
-            sampled_nodes: list[str],
+            target_nodes: list[str],
             readout_nodes: list[str],
             init_delta: float = 0.1,
             delta_gain: float = 2.0,
@@ -514,10 +513,12 @@ class MonteCarloCBN:
                 print(f'Iteration {iteration + 1} (delta = {delta:.2f}): ', end='')
 
             init_node = sampled_nodes[0]
+            init_node = target_nodes[0]
             mask = np.abs(self.nodes[init_node].gen_samples - sampling_targets[init_node]) <= delta
             sample_ids = np.where(mask)[0]
 
             for node_name in sampled_nodes[1:] + fixed_nodes:
+            for node_name in target_nodes[1:]:
                 if len(sample_ids) < min_results:
                     break
 
@@ -569,14 +570,13 @@ class MonteCarloCBN:
         }
 
         readout_distribs = self.construct_hypothesis(
-            sampling_targets,
-            fixed_nodes,
-            sampled_nodes,
-            readout_nodes,
-            init_delta,
-            delta_gain,
-            min_results,
-            verbose
+            sampling_targets=sampling_targets,
+            target_nodes=sampled_nodes + fixed_nodes,
+            readout_nodes=readout_nodes,
+            init_delta=init_delta,
+            delta_gain=delta_gain,
+            min_results=min_results,
+            verbose=verbose
         )
 
         return readout_distribs
