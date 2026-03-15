@@ -8,10 +8,11 @@ import numpy as np
 import pandas as pd
 import umap
 from dowhy import gcm
+from dowhy.gcm.causal_mechanisms import StochasticModel
 from scipy import stats
 
 if TYPE_CHECKING:
-    from dowhy.gcm.causal_mechanisms import ConditionalStochasticModel, StochasticModel
+    from dowhy.gcm.causal_mechanisms import ConditionalStochasticModel
     from dowhy.gcm.causal_models import StructuralCausalModel
     from networkx import DiGraph
 
