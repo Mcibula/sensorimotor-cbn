@@ -467,7 +467,7 @@ class MonteCarloCBN:
         samples = gcm.interventional_samples(
             causal_model=self.M,
             interventions={
-                node_name: lambda x: node_value
+                node_name: lambda _: node_value
                 for node_name, node_value in interventions.items()
             },
             num_samples_to_draw=n_samples
@@ -483,6 +483,10 @@ class MonteCarloCBN:
             state: dict[str, float],
             sampled_nodes: list[str]
     ) -> dict[str, float]:
+        for node_name in sampled_nodes:
+            if node_name not in state:
+                raise ValueError
+
         sampling_targets = {
             node_name: self.nodes[node_name].explore(
                 current_state=state[node_name],
