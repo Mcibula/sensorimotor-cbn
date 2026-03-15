@@ -70,7 +70,7 @@ class CBNExplorationPolicy:
         act_distribs = self.cbn.construct_hypothesis(
             sampling_targets=sampling_targets,
             fixed_nodes=self.fixed_vars,
-            sampled_nodes=self.sampled_vars,
+            target_nodes=self.sampled_vars,
             readout_nodes=self.action_vars,
             delta_gain=1.25,
             min_results=50,
