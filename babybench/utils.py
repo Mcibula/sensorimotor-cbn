@@ -7,6 +7,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import mimoEnv.utils as env_utils
 import numpy as np
+from mimoEnv.babybench import BabyBenchEnv, BabyBenchSelfTouchEnv
 
 sys.path.append('.')
 sys.path.append('..')
@@ -24,7 +25,7 @@ ENVS: dict[str, str] = {
 EPS: float = 1e-6
 
 
-def make_env(config: dict[str, Any] | None = None, training: bool = True) -> gym.Env:
+def make_env(config: dict[str, Any] | None = None, training: bool = True) -> BabyBenchEnv:
     scene_path = os.path.join(config['save_dir'], 'scene.xml')
 
     if training:
@@ -57,7 +58,7 @@ def make_env(config: dict[str, Any] | None = None, training: bool = True) -> gym
     return env
 
 
-def render(env: gym.Env, camera: str = 'corner') -> np.ndarray:
+def render(env: BabyBenchEnv, camera: str = 'corner') -> np.ndarray:
     img: np.ndarray = env.mujoco_renderer.render(
         render_mode='rgb_array',
         camera_name=camera
@@ -66,7 +67,7 @@ def render(env: gym.Env, camera: str = 'corner') -> np.ndarray:
     return img.astype(np.uint8)
 
 
-def evaluation_img(env: gym.Env, up: str = 'side2', down: str = 'top') -> np.ndarray:
+def evaluation_img(env: BabyBenchEnv, up: str = 'side2', down: str = 'top') -> np.ndarray:
     img = np.zeros((480, 720, 3))
     img_corner = render(env, camera='corner')
     img[:, :480, :] = img_corner
@@ -110,7 +111,7 @@ def evaluation_video(
     video.release()
 
 
-def view_binocular(env: gym.Env) -> np.ndarray:
+def view_binocular(env: BabyBenchEnv) -> np.ndarray:
     img_left_eye = render(env, 'eye_left')
     img_right_eye = render(env, 'eye_right')
 
@@ -122,7 +123,7 @@ def view_binocular(env: gym.Env) -> np.ndarray:
     return stereo
 
 
-def view_touches(env: gym.Env, focus_body: str = 'hip', contact_with: str | None = None) -> np.ndarray:
+def view_touches(env: BabyBenchSelfTouchEnv, focus_body: str = 'hip', contact_with: str | None = None) -> np.ndarray:
     root_id = env_utils.get_body_id(env.model, body_name='mimo_location')
 
     points_no_contact = []
@@ -220,10 +221,8 @@ def view_touches(env: gym.Env, focus_body: str = 'hip', contact_with: str | None
                     xs=contact_position[0],
                     ys=contact_position[1],
                     zs=contact_position[2],
-                    color='y',
-                    s=20,
-                    depthshade=True,
-                    alpha=0.8,
+                    color='y', alpha=0.8,
+                    s=20, depthshade=True
                 )
 
     fig.canvas.draw()
@@ -232,7 +231,6 @@ def view_touches(env: gym.Env, focus_body: str = 'hip', contact_with: str | None
     image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
     image_from_plot = image_from_plot.reshape((*fig.canvas.get_width_height()[::-1], 3))
     image_from_plot = image_from_plot[160:160 + 240, 195:195 + 240, :]
-    # image_from_plot = (resize(image_from_plot, (240,240,3))*255).astype(np.uint8)
 
     return image_from_plot
 

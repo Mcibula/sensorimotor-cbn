@@ -1,15 +1,15 @@
 import pickle
 from typing import Any
 
-import gymnasium as gym
 import numpy as np
+from mimoEnv.babybench import BabyBenchEnv
 
 import babybench.utils as bb_utils
 
 
 class Eval:
-    def __init__(self, env: gym.Env, render: bool, save_dir: str) -> None:
-        self._env: gym.Env = env
+    def __init__(self, env: BabyBenchEnv, render: bool, save_dir: str) -> None:
+        self._env: BabyBenchEnv = env
         self._render: bool = render
         self._save_dir: str = save_dir
         self._images: list[np.ndarray] = []
