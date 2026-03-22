@@ -7,10 +7,9 @@ save_dir : results
 behavior : none               # options: none, self_touch, hand_regard
 scene : crib                  # options: base, crib, cubes
 max_episode_steps : 10_000
-frame_skip : 1
+frame_skip : 50
 render_size : 480
 save_logs_every: 1000
-render: True
 
 # --- Sensory modalities --- #
 
