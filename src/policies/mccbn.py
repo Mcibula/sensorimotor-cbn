@@ -1,10 +1,7 @@
-import babybench.utils as bb_utils
 import numpy as np
 import pandas as pd
-import yaml
 
-from modeling import CBNNode, MonteCarloCBN
-from modeling.models import SumModel
+from modeling import MonteCarloCBN
 
 
 class CBNExplorationPolicy:
@@ -138,24 +135,3 @@ class CBNExplorationPolicy:
             action[var_name]
             for var_name in self.action_vars
         ])
-
-
-if __name__ == '__main__':
-    cbn = MonteCarloCBN(load_file=...)
-
-    with open('./config_selftouch.yml', 'r') as f:
-        config = yaml.safe_load(f)
-
-    env = bb_utils.make_env(config)
-
-    policy = CBNExplorationPolicy(
-        cbn=cbn,
-        action_vars=[
-            act_name
-            for act_idx in range(env.model.nu)
-            if (act_name := env.model.actuator(act_idx).name).startswith('act:')
-        ],
-        state_vars=[
-            ...
-        ]
-    )
