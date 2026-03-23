@@ -2,7 +2,7 @@
 MIMo environment utilities
 """
 
-from typing import Any, Iterator
+from typing import Any, Iterator, Literal
 
 import numpy as np
 import xmltodict
@@ -34,7 +34,10 @@ def traverse_xmldict(x: dict[str, Any] | list[Any]) -> Iterator[Any]:
             yield x
 
 
-def actuator_info(config_path: str) -> dict[str, list[str] | dict[str, str | tuple[float, float]]]:
+def actuator_info(config_path: str) -> dict[
+    Literal['actuators', 'act_joints', 'act_limits'],
+    list[str] | dict[str, str | tuple[float, float]]
+]:
     with open(config_path, 'rb') as f:
         motors = xmltodict.parse(f)['mujoco']['actuator']['motor']
 
@@ -67,7 +70,10 @@ def actuator_info(config_path: str) -> dict[str, list[str] | dict[str, str | tup
     }
 
 
-def joint_info(config_path: str) -> dict[str, list[str] | dict[str, tuple[float, float]]]:
+def joint_info(config_path: str) -> dict[
+    Literal['joints', 'joint_limits', 'dpos_limits'],
+    list[str] | dict[str, tuple[float, float]]
+]:
     with open(config_path, 'rb') as f:
         mimo_model = xmltodict.parse(f)['mujoco']['body']
 
