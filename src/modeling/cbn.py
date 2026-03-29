@@ -592,7 +592,7 @@ class MonteCarloCBN:
     def get_exploration_target(
             self,
             state: dict[str, float],
-            sampled_nodes: list[str]
+            sampled_nodes: list[str] | set[str]
     ) -> dict[str, float]:
         """
         Generate scalar target values for each of the `sampled_nodes`
@@ -620,8 +620,8 @@ class MonteCarloCBN:
     def construct_hypothesis(
             self,
             sampling_targets: dict[str, float],
-            target_nodes: list[str],
-            readout_nodes: list[str],
+            target_nodes: list[str] | set[str],
+            readout_nodes: list[str] | set[str],
             init_delta: float = 0.1,
             delta_gain: float = 2.0,
             min_results: int = 100,
@@ -657,6 +657,15 @@ class MonteCarloCBN:
 
         if verbose:
             print(f'Starting backpropagated rejection sampling with delta = {init_delta:.2f}')
+
+        if isinstance(target_nodes, set):
+            target_nodes = list(target_nodes)
+
+        if isinstance(readout_nodes, set):
+            readout_nodes = list(readout_nodes)
+
+        target_nodes: list[str]
+        readout_nodes: list[str]
 
         delta = init_delta
         iteration = 0

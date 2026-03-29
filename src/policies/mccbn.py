@@ -10,8 +10,8 @@ class CBNExplorationPolicy:
             cbn: MonteCarloCBN,
             action_vars: list[str],
             state_vars: list[str],
-            sampled_state_vars: list[str],
-            fixed_state_vars: list[str],
+            sampled_state_vars: list[str] | set[str],
+            fixed_state_vars: list[str] | set[str],
             history_limit: int = 1000,
             expl_limit: int = 10,
             target_thresh: float = 1e-2,
@@ -29,8 +29,8 @@ class CBNExplorationPolicy:
 
         self.action_vars: list[str] = action_vars
         self.state_vars: list[str] = state_vars
-        self.sampled_vars: list[str] = sampled_state_vars
-        self.fixed_vars: list[str] = fixed_state_vars
+        self.sampled_vars: list[str] | set[str] = sampled_state_vars
+        self.fixed_vars: list[str] | set[str] = fixed_state_vars
 
         self.expl_target: dict[str, float] = {}
         self.expl_steps: int = 0
