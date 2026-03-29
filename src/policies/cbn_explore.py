@@ -22,11 +22,27 @@ class CBNExplorationPolicy:
             target_thresh: float = 1e-2,
             verbose: bool = False
     ) -> None:
-        assert action_vars
-        assert state_vars
-        assert sampled_state_vars
+        # There must be some action and state variables
+        if not action_vars or not state_vars:
+            raise ValueError
+
+        # There must be some state variables marked for sampling/exploration
+        if not sampled_state_vars:
+            raise ValueError
+
+        # All subtype state variables must be included in the state space
+        if (
+            not set(sampled_state_vars).issubset(set(state_vars))
+            or not set(fixed_state_vars).issubset(set(state_vars))
+        ):
+            raise ValueError
 
         self.cbn: MonteCarloCBN = cbn
+
+        # Action variables together with the state variables
+        # must form the exact variables space of the CBN
+        if not set(action_vars + state_vars) == set(self.cbn.nodes.keys()):
+            raise ValueError
 
         self.act_history: list[dict[str, float]] = []
         self.obs_history: list[dict[str, float]] = []
@@ -105,7 +121,8 @@ class CBNExplorationPolicy:
         obs_history = self.obs_history[1:]
         act_history = self.act_history
 
-        assert len(obs_history) == len(act_history)
+        if len(obs_history) != len(act_history):
+            raise RuntimeError
 
         self.obs_history = []
         self.act_history = []
