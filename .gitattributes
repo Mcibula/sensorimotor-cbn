@@ -1,3 +1,2 @@
 MIMo/** linguist-vendored
-
-*.ipynb  text eol=lf
+*.ipynb linguist-vendored
