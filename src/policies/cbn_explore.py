@@ -58,8 +58,8 @@ class CBNExplorationPolicy:
 
         self.action_vars: list[str] = action_vars
         self.state_vars: list[str] = state_vars
-        self.sampled_vars: list[str] | set[str] = sampled_state_vars
-        self.fixed_vars: list[str] | set[str] = fixed_state_vars
+        self.sampled_vars: list[str] = list(sampled_state_vars)
+        self.fixed_vars: list[str] = list(fixed_state_vars)
 
         self.expl_target: dict[str, float] = {}
         self.expl_steps: int = 0
@@ -100,7 +100,7 @@ class CBNExplorationPolicy:
 
         act_distribs = self.cbn.construct_hypothesis(
             sampling_targets=sampling_targets,
-            target_nodes=self.sampled_vars,
+            target_nodes=self.sampled_vars + self.fixed_vars,
             readout_nodes=self.action_vars,
             init_delta=self.expl_init_delta,
             delta_gain=self.expl_delta_gain,
