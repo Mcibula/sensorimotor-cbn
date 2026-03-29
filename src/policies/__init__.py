@@ -1,1 +1,1 @@
-from mccbn import CBNExplorationPolicy
+from .cbn_explore import CBNExplorationPolicy

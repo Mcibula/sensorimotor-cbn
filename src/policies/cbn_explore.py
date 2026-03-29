@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pandas as pd
 
 from modeling import MonteCarloCBN
+
+if TYPE_CHECKING:
+    from scipy.stats import rv_histogram
 
 
 class CBNExplorationPolicy:
