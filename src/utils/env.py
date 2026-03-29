@@ -2,9 +2,11 @@
 MIMo environment utilities
 """
 
+import re
 from typing import Any, Iterator, Literal
 
 import numpy as np
+import pandas as pd
 import xmltodict
 
 
@@ -101,3 +103,20 @@ def joint_info(config_path: str) -> dict[
         'joint_limits': joint_limits,
         'dpos_limits': dpos_limits
     }
+
+
+def variable_list(data_path: str) -> list[str]:
+    df: pd.DataFrame = pd.read_pickle(data_path)
+
+    return df.columns.tolist()
+
+
+def variable_filter(var_list: list[str], pattern: str) -> list[str]:
+    re_pattern = re.compile(pattern)
+
+    return [
+        var_name
+        for var_name in var_list
+        if re_pattern.match(var_name) is not None
+    ]
+
