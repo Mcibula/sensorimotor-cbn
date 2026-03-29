@@ -143,8 +143,10 @@ class CBNExplorationPolicy:
 
         self.cbn.fit(pd.DataFrame(data))
 
-    def _reached_target(self, obs: dict[str, float]) -> bool:
     def _reached_target(self, state: dict[str, float]) -> bool:
+        if not state:
+            return False
+
         error = np.mean([
             np.abs(state[node_name] - node_target)
             for node_name, node_target in self.expl_target.items()
