@@ -13,13 +13,21 @@ class CBNExplorationPolicy:
     def __init__(
             self,
             cbn: MonteCarloCBN,
+
+            # Domain variable declaration
             action_vars: list[str],
             state_vars: list[str],
             sampled_state_vars: list[str] | set[str],
             fixed_state_vars: list[str] | set[str],
+
+            # Exploration hyperparameters
             history_limit: int = 1000,
             expl_limit: int = 10,
+            expl_init_delta: float = 0.1,
+            expl_delta_gain: float = 1.25,
+            min_results: int = 50,
             target_thresh: float = 1e-2,
+
             verbose: bool = False
     ) -> None:
         # There must be some action and state variables
@@ -56,6 +64,9 @@ class CBNExplorationPolicy:
         self.expl_target: dict[str, float] = {}
         self.expl_steps: int = 0
         self.expl_limit: int = expl_limit
+        self.expl_init_delta: float = expl_init_delta
+        self.expl_delta_gain: float = expl_delta_gain
+        self.min_results: int = min_results
         self.target_thresh: float = target_thresh
 
         self.verbose: bool = verbose
@@ -91,8 +102,9 @@ class CBNExplorationPolicy:
             sampling_targets=sampling_targets,
             target_nodes=self.sampled_vars,
             readout_nodes=self.action_vars,
-            delta_gain=1.25,
-            min_results=50,
+            init_delta=self.expl_init_delta,
+            delta_gain=self.expl_delta_gain,
+            min_results=self.min_results,
             verbose=self.verbose
         )
 
