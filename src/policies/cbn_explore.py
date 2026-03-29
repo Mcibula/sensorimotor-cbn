@@ -60,11 +60,13 @@ class CBNExplorationPolicy:
 
         self.verbose: bool = verbose
 
-    def __call__(self, obs: np.ndarray) -> np.ndarray:
-        obs = self._parse_state(obs)
-        self._observe(obs)
+    def __call__(self, state: dict[str, float]) -> np.ndarray:
+        if set(state.keys()) != set(self.state_vars):
+            raise ValueError
 
-        if self.expl_steps >= self.expl_limit or self._reached_target(obs):
+        self._observe(state)
+
+        if self.expl_steps >= self.expl_limit or self._reached_target(state):
             if self.verbose:
                 print('Finished the exploration episode')
 
@@ -75,13 +77,13 @@ class CBNExplorationPolicy:
                 print('Starting new exploration episode...')
 
             self.expl_target = self.cbn.get_exploration_target(
-                state=obs,
+                state=state,
                 sampled_nodes=self.sampled_vars
             )
             self.expl_steps = 0
 
         sampling_targets = self.expl_target | {
-            node_name: obs[node_name]
+            node_name: state[node_name]
             for node_name in self.fixed_vars
         }
 
@@ -109,8 +111,11 @@ class CBNExplorationPolicy:
     def exploring(self) -> bool:
         return len(self.expl_target) > 0
 
-    def _observe(self, obs: dict[str, float]) -> None:
-        self.obs_history.append(obs)
+    def _observe(self, state: dict[str, float]) -> None:
+        if set(state.keys()) != set(self.state_vars):
+            raise ValueError
+
+        self.obs_history.append(state)
 
         if len(self.obs_history) - 1 < self.history_limit:
             return
@@ -139,18 +144,13 @@ class CBNExplorationPolicy:
         self.cbn.fit(pd.DataFrame(data))
 
     def _reached_target(self, obs: dict[str, float]) -> bool:
+    def _reached_target(self, state: dict[str, float]) -> bool:
         error = np.mean([
-            np.abs(obs[node_name] - node_target)
+            np.abs(state[node_name] - node_target)
             for node_name, node_target in self.expl_target.items()
         ])
 
         return error <= self.target_thresh
-
-    def _parse_state(self, obs: np.ndarray) -> dict[str, float]:
-        return {
-            var_name: float(obs[idx])
-            for idx, var_name in enumerate(self.state_vars)
-        }
 
     def _vectorize_action(self, action: dict[str, float]) -> np.ndarray:
         return np.array([
