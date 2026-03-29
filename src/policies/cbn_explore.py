@@ -98,7 +98,7 @@ class CBNExplorationPolicy:
             for node_name in self.fixed_vars
         }
 
-        act_distribs = self.cbn.construct_hypothesis(
+        act_distribs: dict[str, rv_histogram] = self.cbn.construct_hypothesis(
             sampling_targets=sampling_targets,
             target_nodes=self.sampled_vars + self.fixed_vars,
             readout_nodes=self.action_vars,
@@ -111,7 +111,7 @@ class CBNExplorationPolicy:
         self.expl_steps += 1
 
         action = {
-            node_name: distrib.rvs(size=1)
+            node_name: distrib.rvs(size=1)[0]
             for node_name, distrib in act_distribs.items()
         }
         self.act_history.append(action)
