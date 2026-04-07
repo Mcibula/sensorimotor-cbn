@@ -152,9 +152,11 @@ class CBNNode:
         if self.curiosity is None:
             self.curiosity = self._compute_curiosity()
 
-        # Check whether the observed point is within the range
-        if point < self.limits[0] or point > self.limits[1]:
-            raise ValueError
+        point = np.clip(
+            point,
+            a_min=self.limits[0], a_max=self.limits[1],
+            dtype=float
+        )
 
         counts, bin_edges = self.curiosity._histogram
         bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
