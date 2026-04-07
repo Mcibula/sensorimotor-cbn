@@ -138,6 +138,9 @@ class CBNExplorationPolicy:
         obs_history = self.obs_history[1:]
         act_history = self.act_history
 
+        if len(obs_history) + 1 == len(act_history):
+            act_history = act_history[1:]
+
         if len(obs_history) != len(act_history):
             raise RuntimeError
 
